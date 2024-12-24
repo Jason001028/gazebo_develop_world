@@ -1,0 +1,152 @@
+# 使用ARG设置ROS_DISTRO,避免重复
+ARG ROS_DISTRO=melodic
+FROM osrf/ros:${ROS_DISTRO}-desktop-full
+
+# 设置参数
+ARG NVIDIA_VISIBLE_DEVICES=all
+ARG NVIDIA_DRIVER_CAPABILITIES=all
+
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=${ROS_DISTRO} \
+    NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES} \
+    NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES} \
+    QT_X11_NO_MITSHM=1 \
+    LIBGL_ALWAYS_INDIRECT=0 \
+    DISPLAY=:0 \
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
+
+# 设置工作目录
+WORKDIR /root/catkin_ws
+
+# 安装依赖 (合并RUN命令以减少层数)
+RUN apt-get update && apt-get install -y \
+    python-tk \
+    libarmadillo-dev \
+    ros-${ROS_DISTRO}-nlopt \
+    libelf-dev \
+    libdw-dev \
+    git \
+    libeigen3-dev \
+    ros-${ROS_DISTRO}-pcl-conversions \
+    libopencv-dev \
+    ros-${ROS_DISTRO}-cv-bridge \
+    ros-${ROS_DISTRO}-pcl-ros \
+    ros-${ROS_DISTRO}-tf \
+    ros-${ROS_DISTRO}-laser-geometry \
+    ros-${ROS_DISTRO}-rviz \
+    ros-${ROS_DISTRO}-ros-control \
+    ros-${ROS_DISTRO}-ros-controllers \
+    ros-${ROS_DISTRO}-ackermann-msgs \
+    wget \
+    ros-${ROS_DISTRO}-cartographer \
+    ros-${ROS_DISTRO}-cartographer-ros \
+    ros-${ROS_DISTRO}-cartographer-ros-msgs \
+    ros-${ROS_DISTRO}-cartographer-rviz \
+    ros-${ROS_DISTRO}-gazebo-ros-pkgs \
+    ros-${ROS_DISTRO}-gazebo-ros-control \
+    ros-${ROS_DISTRO}-gmapping \
+    ros-${ROS_DISTRO}-rtabmap-ros \
+    dbus \
+    libgl1-mesa-glx \
+    libgl1-mesa-dri \
+    libglu1-mesa \
+    mesa-utils \
+    libglvnd0 \
+    libglx0 \
+    libegl1 \
+    libxcb1 \
+    libxcb-glx0 \
+    libxcb-dri2-0 \
+    libxcb-dri3-0 \
+    libxcb-present0 \
+    libxcb-sync1 \
+    libxshmfence1 \
+    libxxf86vm1 \
+    dbus-x11 \
+    x11-apps \
+    tmux \
+    ros-${ROS_DISTRO}-joint-state-publisher \
+    ros-${ROS_DISTRO}-joint-state-publisher-gui \
+    ros-${ROS_DISTRO}-navigation \
+    ros-${ROS_DISTRO}-teb-local-planner \
+    ros-${ROS_DISTRO}-rqt \
+    ros-${ROS_DISTRO}-rqt-common-plugins \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建catkin工作空间
+RUN mkdir -p /root/catkin_ws/src
+
+# 复制项目文件
+COPY ./src /root/catkin_ws/src
+
+# 修复Python脚本的行尾并设置执行权限
+RUN find /root/catkin_ws/src -name "*.py" -type f -exec sed -i 's/\r$//' {} \; && \
+    chmod +x /root/catkin_ws/src/patrol_pkg/scripts/demo_navigation1.sh && \
+    chmod +x /root/catkin_ws/src/patrol_pkg/scripts/demo_navigation2.sh && \
+    chmod +x /root/catkin_ws/src/patrol_pkg/scripts/demo_navigation3.sh && \
+    chmod +x /root/catkin_ws/src/patrol_pkg/scripts/*.py
+    
+# 编译项目
+RUN /bin/bash -c '. /opt/ros/${ROS_DISTRO}/setup.bash && cd /root/catkin_ws && catkin_make'
+
+# 设置环境变量
+ENV ROS_PACKAGE_PATH="/opt/ros/${ROS_DISTRO}/share:/root/catkin_ws/src:${ROS_PACKAGE_PATH:+:$ROS_PACKAGE_PATH}"
+ENV GAZEBO_MODEL_PATH=/root/catkin_ws/src/racebot_gazebo/models:${GAZEBO_MODEL_PATH}
+
+
+
+# 创建并设置X11目录
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+
+# 添加健康检查
+HEALTHCHECK CMD pgrep bash || exit 1
+
+# 创建启动脚本
+RUN echo '#!/bin/bash\n\
+source /opt/ros/${ROS_DISTRO}/setup.bash\n\
+source /root/catkin_ws/devel/setup.bash\n\
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+# 设置入口点
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]
+
+# 添加标签
+LABEL maintainer="Your Name <your.email@example.com>"
+LABEL version="1.0"
+LABEL description="Gazebo ${ROS_DISTRO} ROS image for multi-robot simulation with NVIDIA GPU support"
+
+# 添加一些有用的别名和环境设置
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
+    echo "source /root/catkin_ws/devel/setup.bash" >> /root/.bashrc && \
+    echo "alias cw='cd /root/catkin_ws'" >> /root/.bashrc && \
+    echo "alias cs='cd /root/catkin_ws/src'" >> /root/.bashrc && \
+    echo "alias cm='cd /root/catkin_ws && catkin_make'" >> /root/.bashrc
+
+# 创建一个运行脚本来启动多机器人仿真
+RUN echo '#!/bin/bash\n\
+source /opt/ros/${ROS_DISTRO}/setup.bash\n\
+source /root/catkin_ws/devel/setup.bash\n\
+# 启动Gazebo仿真\n\
+roslaunch racebot_gazebo racebot.launch &\n\
+# 等待Gazebo完全启动\n\
+sleep 10\n\
+# 启动SLAM或导航\n\
+if [ "\$1" == "slam" ]; then\n\
+    roslaunch racebot_gazebo gmapping.launch\n\
+elif [ "\$1" == "navigation" ]; then\n\
+    roslaunch racebot_gazebo navigation.launch\n\
+else\n\
+    echo "Usage: \$0 [slam|navigation]"\n\
+fi' > /root/run_simulation.sh && \
+    chmod +x /root/run_simulation.sh
+
+# 添加一个启动脚本来运行rqt_graph
+RUN echo '#!/bin/bash\n\
+source /opt/ros/${ROS_DISTRO}/setup.bash\n\
+source /root/catkin_ws/devel/setup.bash\n\
+rqt_graph' > /root/run_rqt_graph.sh && \
+    chmod +x /root/run_rqt_graph.sh
+

@@ -1,0 +1,27 @@
+<launch>
+    <node pkg="patrol_pkg" type="patrol_node.py" name="patrol_node" output="screen">
+        <!-- 添加 move_base 配置 -->
+        <param name="move_base_name" value="/move_base"/>
+        <param name="move_base_simple_topic" value="/move_base_simple/goal"/>  
+            
+        <!-- 巡逻点配置 -->
+        <rosparam param="points">
+            [[1.0, 1.0, 0.0],
+             [2.0, 2.0, 1.57],
+             [2.0, 0.0, 3.14],
+             [0.0, 0.0, 0.0]]
+        </rosparam>
+
+        <!-- 导航参数 -->
+        <param name="frame_id" value="map"/>
+        <param name="goal_tolerance" value="0.5"/>
+        <param name="wait_duration" value="5.0"/>
+        <param name="retry_attempts" value="3"/>
+
+        <!-- 巡逻行为 -->
+        <param name="loop_patrol" value="true"/>
+        <param name="pause_time" value="2.0"/>
+        <param name="auto_start" value="true"/>
+    </node>
+</launch>
+

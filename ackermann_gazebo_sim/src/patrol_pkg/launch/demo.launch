@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 启动 Gazebo 仿真环境 -->
+    <include file="$(find racebot_gazebo)/launch/racebot.launch"/>
+    
+    <!-- 等待 Gazebo 启动 -->
+    <arg name="init_wait" default="5"/>
+    <node pkg="rostopic" type="rostopic" name="wait_for_gazebo" 
+          args="echo /gazebo/model_states"
+          launch-prefix="bash -c 'sleep $(arg init_wait); \$0 $@' "/>
+    
+    <!-- 启动 SLAM 和导航节点 -->
+    <include file="$(find racebot_gazebo)/launch/slam_navi.launch">
+        <arg name="wait" value="$(arg init_wait)"/>
+    </include>
+    
+    <!-- 运行导航脚本 -->
+    <node pkg="patrol_pkg" type="demo_navigation.sh" name="demo_navigation" 
+          output="screen"
+          launch-prefix="bash -c 'sleep 15; \$0 $@' "/>
+</launch>
+

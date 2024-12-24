@@ -1,0 +1,59 @@
+name: ackermann_sim
+
+services:
+  sim1:
+    image: ackermann_gazebo_sim3
+    container_name: ackermann_sim1
+    stdin_open: true
+    tty: true
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+      - ROS_MASTER_URI=http://172.20.10.5:11311
+      - ROS_IP=172.20.10.5 
+      - TZ=Asia/Shanghai
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /var/run/dbus:/var/run/dbus
+      - ~/.gazebo/models:/root/.gazebo/models:ro
+      - /etc/localtime:/etc/localtime:ro
+    network_mode: "host"
+    privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  sim2:
+    extends: sim1
+    container_name: ackermann_sim2
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+      - ROS_MASTER_URI=http://172.20.10.5:11312
+      - ROS_IP=172.20.10.5 
+      - TZ=Asia/Shanghai
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
+  sim3:
+    extends: sim1
+    container_name: ackermann_sim3
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+      - ROS_MASTER_URI=http://172.20.10.5:11313
+      - ROS_IP=172.20.10.5 
+      - TZ=Asia/Shanghai
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
